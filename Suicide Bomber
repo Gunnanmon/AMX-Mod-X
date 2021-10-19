@@ -1,0 +1,583 @@
+/* Suicide Bomber by Gunnanmon Version 1.01X   (08MAY04)
+   
+- One Random Player Picked From Either Team Will Become a Suicide Bomber With Barney Speak 
+  and VIP Model on Round Start.
+- The Suicide Bomb Will Count Down And Display The Time Until Bomb Detonation.
+- The Bomb Beeps Once Every Five Seconds From 60 - 15 Seconds. At 10 - 1 Seconds it Beeps Rapidly.
+- All Players Can Hear Barney Speak And Bomb Beeps.
+- All Players Are Potential Victims of The Suicide Bomber.
+- For Each Kill The Suicide Bomb Causes, One Frag and $2000 Dollars is Added to The Suicide Bomber.
+- If The Suicide Bomber is Killed Before Detonation, Each Player on the Opposing Team Receives a 
+  Configureable Ammount of Frags.
+- The Suicide Bomber Starts Out With 250 Hit Points and Armor.
+- Type 'amx_suid_help' in The Server Console to Find Out What CVARS Do What.
+
+Note: Doesn't work well with RealBot. Apparently RealBot figures out who to attack by what
+      model the enemy is using. 
+      
+Note #2:
+
+--------------------------------------------------------------------------------------------------
+
+Minor Fixes and Additions.   (10May04)
+        - Removed "bloop.wav" Precache. Served no Purpose
+        - Changed Sprite_Explode's to a Single Array
+        - Changed Plugin Introduction
+        - Changed Sprite Framerate
+        - Changed ChromeGib Velocity
+        - Changed Shockwave. Looks More Cool Now
+        - Fixed Damage Range CVAR
+        - Fixed Some Explosion Sprite Spwaning Heights. Some Explosion Sprites Got Cut Off At Bottom
+        - Fixed Main Explosion Sound. Bloop Was Overlapping it
+        - Added More Barney Speak
+        - Added Smoke to Explosion
+        - Added 250 Hit Points to Suicide Bomber on Round Start
+        
+--------------------------------------------------------------------------------------------------
+
+        Some More Fixes.   (24Jul04)
+      
+        - Ported to AmxX
+        - Fixed a Sound Emiter Which Was Incorrectly Pointing to a File. Would Cause Game Crash.
+        - Added in a Global Message about Suicide Bomber Detonating and Not Killing Anyone.
+        - Changed The Help Menu Slightly.
+        - Major Overhaul of the Message Spacing. Looks more Professional Now. (This Took Forever!)
+
+--------------------------------------------------------------------------------------------------       
+*/
+
+#include <amxmodx>
+#include <cstrike>
+#include <fun>
+
+new Sprite_Explode[9]
+new Sprite_Smoke
+new Sprite_Shockwave
+new Model_ChromeGibs
+
+new Sprite_Randomize1
+new Sprite_Randomize2
+new Sprite_Randomize3
+new Explosion_Origin[3]
+new Explosive_Distance
+new Explosion_Frags
+new Explosive_DistMinusCVAR
+new Seconds
+new Barney_Say1
+new Barney_Say2
+new PlayerHP
+new PlayerNum_Random = -1
+new PlayerNum_Random_Team
+new PlayerNum_Random_Killed
+new PlayerOthr_Orig[3]
+new Player_Ammount
+new MapOilRig[15]
+
+Explode1(vec1[3]) //Explosion Effects Below
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(19)                                      //Ring that expands to max radius over lifetime
+  write_coord(vec1[0])                                //Center Position 
+  write_coord(vec1[1])                                //Center Position
+  write_coord(vec1[2]+40)                             //Center Position
+  write_coord(vec1[0]+1500)                           //Axis and Radius
+  write_coord(vec1[1]+1500)                           //Axis and Radius
+  write_coord(vec1[2]+1500)                           //Axis and Radius
+  write_short(Sprite_Shockwave)                       //Sprite Index
+  write_byte(0)                                       //Starting Frame
+  write_byte(00)                                      //Frame Rate in 0.1
+  write_byte(15)                                      //Life in 0.1
+  write_byte(70)                                      //Line Width in 0.1
+  write_byte(000)                                     //Noise Amplitude in 0.01
+  write_byte(255)                                     //Red 
+  write_byte(255)                                     //Green 
+  write_byte(255)                                     //Blue 
+  write_byte(04)                                      //Brightness
+  write_byte(0)                                       //Scroll Speed in 0.1
+  message_end()
+  
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(4)                                       //TarBaby Explosion With Sound Effect
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 45)                           //Center Position Z
+  message_end()
+  
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(4)                                       //TarBaby Explosion With Sound Effect
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 30)                           //Center Position Z
+  message_end()
+  
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(4)                                       //TarBaby Explosion With Sound Effect
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 15)                           //Center Position Z 
+  message_end() 
+  
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(5)                                       //Makes One Sprite Which Moves Upwards 30 Pixels
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Smoke)                           //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(20)                                      //Framerate
+  message_end()
+  
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(107)                                     //Spherical Shower of Models, Picks From Set
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 30)                           //Center Position Z 
+  write_coord(888)                                    //Velocity
+  write_short(Model_ChromeGibs)                       //Model Index
+  write_short(10)                                     //Count
+  write_byte(25)                                      //Life in 0.1's
+  message_end()
+}
+
+Explode2(vec1[3]) 
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Explode[0])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode3(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Explode[1])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode4(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 130)                          //Center Position Z
+  write_short(Sprite_Explode[2])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode5(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 115)                          //Center Position Z
+  write_short(Sprite_Explode[3])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode6(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Explode[4])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode7(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 130)                          //Center Position Z
+  write_short(Sprite_Explode[5])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode8(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Explode[6])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode9(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1)
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Explode[7])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+Explode10(vec1[3])
+{
+  message_begin(MSG_BROADCAST,SVC_TEMPENTITY,vec1) 
+  write_byte(3)                                       //Makes One Sprite Which Moves Upwards, Two Dynamic Lights and Flickering Particles
+  write_coord(vec1[0] + (Sprite_Randomize1 * 5))      //Center Position X
+  write_coord(vec1[1] + (Sprite_Randomize2 * 5))      //Center Position X
+  write_coord(vec1[2] + 55)                           //Center Position Z
+  write_short(Sprite_Explode[8])                      //Sprite Index
+  write_byte(040)                                     //Scale in 0.1
+  write_byte(18)                                      //Framerate
+  write_byte(4)                                       //Flags, 4 Disables Additive Sound
+  message_end()
+}
+
+public plugin_precache()
+{
+  precache_sound("weapons/c4_beep5.wav")
+  precache_sound("weapons/c4_explode1.wav")
+  precache_sound("barney/ba_bring.wav")
+  precache_sound("barney/ba_tomb.wav")
+  precache_sound("barney/ba_iwish.wav")
+  precache_sound("barney/c1a4_ba_octo2.wav")
+  precache_sound("barney/c1a4_ba_octo3.wav")
+  precache_sound("barney/c1a4_ba_octo4.wav")
+  precache_sound("barney/getanyworse.wav")
+  precache_sound("barney/survive.wav")
+  precache_sound("barney/ba_endline.wav")
+  precache_sound("barney/badfeeling.wav")
+  precache_sound("barney/standback.wav")
+  precache_sound("barney/c1a2_ba_goforit.wav")
+  Sprite_Explode[0]=precache_model("sprites/aexplo.spr")
+  Sprite_Explode[1]=precache_model("sprites/bexplo.spr")
+  Sprite_Explode[2]=precache_model("sprites/cexplo.spr")
+  Sprite_Explode[3]=precache_model("sprites/dexplo.spr")
+  Sprite_Explode[4]=precache_model("sprites/eexplo.spr")
+  Sprite_Explode[5]=precache_model("sprites/fexplo.spr")
+  Sprite_Explode[6]=precache_model("sprites/xfireball3.spr")
+  Sprite_Explode[7]=precache_model("sprites/explode1.spr")
+  Sprite_Explode[8]=precache_model("sprites/zerogxplode.spr")
+  Sprite_Shockwave=precache_model("sprites/shockwave.spr")
+  Sprite_Smoke=precache_model("sprites/steam1.spr")
+  Model_ChromeGibs=precache_model("models/chromegibs.mdl")
+}
+
+public plugin_init()
+{
+  register_plugin("Suicide Bomber","1.01X","By Gunnanmon")
+  register_logevent("event_RandPlrBomb",2,"1=Round_Start")
+  register_cvar("amx_suid_timermax","60")            //Maximum Seconds For Suicide Bomb 
+  register_cvar("amx_suid_timermin","40")            //Minimum Seconds For Suicide Bomb
+  register_cvar("amx_suid_common","4")               //How Often (By Round) Players Become The Suicide Bomber. (1 = 100%, 2 = 50%, 3 = 33%, 4 = 25%, Etc.)
+  register_cvar("amx_suid_on","1")                   //Plugin On or Off (1 = on)
+  register_cvar("amx_suid_range","550")              //Explosive Damage Range
+  register_cvar("amx_suid_frag","2")                 //Ammount of "Frags" The Killer of The Suicide Bomber Will Recieve
+  register_srvcmd("amx_suid_help", "event_CvarHelp") //Server Help
+  return PLUGIN_CONTINUE
+}
+
+public event_CvarHelp() //Take a Guess
+{
+  server_print(" ")
+  server_print("____________________________________ ____ ___  __  _    _")
+  server_print("[AMX]Suicide Bomber- Version 1.01X Written by Gunnanmon")
+  server_print(" ")
+  server_print("           The Following Cvars Are Availible")
+  server_print(" ")
+  server_print("amx_suid_on - Plugin On/Off   1 = On")
+  server_print("amx_suid_timermax - Maximum Seconds For The Suicide Bomb.")
+  server_print("amx_suid_timermin - Minimum Seconds For The Suicide Bomb.")
+  server_print("amx_suid_common - How Often Players Become The Bomber.")
+  server_print("amx_suid_range - Damage Range From The Suicide Bomb.")
+  server_print("amx_suid_frag - The 'Bomber' Killers Team Gets This Many Kills.")
+  server_print("amx_suid_help - I Forget What This Does...")
+  server_print("_______________________________________ ____  __  _")
+  server_print(" ")
+  
+  return PLUGIN_CONTINUE
+}
+
+public event_RandPlrBomb() //Displays Server Messages, Randomizes Whom Will Be The Suicide Bomber, How Common (By Round) Players Will Become The Suicide Bomber and Checks What Team The Suicide Bomber is on.
+{
+  if(PlayerNum_Random != -1)
+    cs_reset_user_model(PlayerNum_Random)
+  if(get_cvar_num("amx_suid_on") == 0)
+  {
+    server_print("[AMX]Suicide Bomber - Currently Disengaged.")
+    return PLUGIN_CONTINUE
+  }
+  
+  if(get_playersnum() == 1)
+  {
+    server_print("[AMX]Suicide Bomber - Require More Than One Player.")
+    return PLUGIN_CONTINUE
+  }
+  
+  get_mapname(MapOilRig, 15)
+  if(equali(MapOilRig, "as_oilrig"))
+  {
+    server_print("[AMX]Suicide Bomber - Will Not Activate on Map 'as_oilrig'")
+    return PLUGIN_CONTINUE
+  }
+  
+  if(random_num(1,get_cvar_num("amx_suid_common")) != 1)
+    return PLUGIN_CONTINUE
+  PlayerNum_Random = random_num(1, get_playersnum())
+  ExplodeP1()
+  return PLUGIN_CONTINUE
+}
+
+public BomberKilled() //Sends Proper Message to All Players About Suicide Bomber Death, Emits 'bloop' Sound and Adds One Kill to Everyone Opposing The Suicide Bomber (That is, If He Was Killed Before Detonation)
+{
+  if(Player_Ammount == PlayerNum_Random)
+    return PLUGIN_CONTINUE
+  
+  if((PlayerNum_Random_Killed == 0) && (Explosion_Frags == 0))
+  {
+    set_hudmessage(108, 244, 201, 0.30, 0.80, 0, 0.0, 6.0, 0.4, 0.1, 250)
+    show_hudmessage(Player_Ammount,"The Suicide Bomber Has Detonated and Only Killed Himself.")
+    return PLUGIN_CONTINUE
+  } 
+  
+  if(PlayerNum_Random_Killed == 0)
+  {
+    set_hudmessage(108, 244, 201, 0.34, 0.80, 0, 0.0, 6.0, 0.4, 0.1, 250)
+    show_hudmessage(Player_Ammount,"The Suicide Bomber Has Sucessfully Detonated.")
+    return PLUGIN_CONTINUE
+  } 
+       
+  if((get_user_team(Player_Ammount) == PlayerNum_Random_Team) && (PlayerNum_Random_Killed == 1))
+  {
+    set_hudmessage(108, 244, 201, 0.30, 0.80, 0, 0.0, 6.0, 0.4, 0.1, 250)
+    show_hudmessage(Player_Ammount,"The Suicide Bomber Has Been Killed Before Detonation.")
+    return PLUGIN_CONTINUE
+  }  
+      
+  if((get_user_team(Player_Ammount) != PlayerNum_Random_Team) && (PlayerNum_Random_Killed == 1))
+  {
+    set_hudmessage(108, 244, 201, 0.35, 0.75, 0, 0.0, 6.0, 0.4, 0.1, 250)
+    show_hudmessage(Player_Ammount,"       The Suicide Bomber Was Killed!^nYour Team Has Been Awarded %i Frags Each.", get_cvar_num("amx_suid_frag"))
+    set_user_frags(Player_Ammount, (get_user_frags(Player_Ammount) + get_cvar_num("amx_suid_frag")))
+    return PLUGIN_CONTINUE
+  }
+  
+  return PLUGIN_CONTINUE
+}
+
+public HudAndEmit() //Detonation Message and Emit Beep Sound
+{
+  set_hudmessage(255, 255, 255, 0.07, 0.65, 2, 0.01, 2.0, 0.03, 0.03, 200)
+  show_hudmessage(PlayerNum_Random,"%i Seconds Remaining Until Detonation", Seconds)
+  emit_sound(PlayerNum_Random,CHAN_ITEM,"weapons/c4_click.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  return PLUGIN_CONTINUE
+}
+
+public HudAndEmit2() //Detonation Message and Emit Beep Sound (Used For 10 - 1 Second Count Down)
+{
+  set_hudmessage(255, 225, 225, 0.07, 0.65, 2, 0.01, 1.1, 0.0, 0.0, 200)
+  show_hudmessage(PlayerNum_Random,"Detonation in...%i", Seconds)
+  emit_sound(PlayerNum_Random,CHAN_ITEM,"weapons/c4_beep5.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  return PLUGIN_CONTINUE
+}
+
+public ExplodeP1() //Starts The Count Down Clock, Sets VIP model, Sets 250 Armor, Randomizes Count Down Seconds, Emits a Barney Speak and Tells Player They Are a Suicide Bomber Plus How Many Seconds They Have.
+{
+  remove_task(1)
+  cs_set_user_model(PlayerNum_Random,"vip")
+  set_user_armor(PlayerNum_Random,250)
+  set_user_health(PlayerNum_Random,250)
+  PlayerNum_Random_Killed = 0
+  Barney_Say1 = random_num(1,7)
+  Barney_Say2 = random_num(1,5)
+  Seconds = random_num(get_cvar_num("amx_suid_timermin"),get_cvar_num("amx_suid_timermax"))
+  set_hudmessage(255, 0, 0, 0.37, 0.40, 0, 0.0, 10.0, 0.4, 0.1, 200)
+  show_hudmessage(0,"ATTENTION: Suicide Bomber Selected.")
+  set_hudmessage(255, 255, 255, 0.29, 0.80, 0, 0.0, 6.0, 0.4, 0.1, 150)
+  show_hudmessage(PlayerNum_Random,"You Are a Suicide Bomber. The Bomb is Set For %i Seconds.", Seconds)
+  if(Barney_Say1 == 1)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/ba_bring.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  if(Barney_Say1 == 2)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/ba_tomb.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  if(Barney_Say1 == 3)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/ba_iwish.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  if(Barney_Say1 == 4)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/getanyworse.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  if(Barney_Say1 == 5)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/survive.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  if(Barney_Say1 == 6)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/ba_endline.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  if(Barney_Say1 == 7)
+    emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/badfeeling.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  set_task(1.0,"ExplodeP2",1,"",0,"a", Seconds)
+  return PLUGIN_CONTINUE
+}
+
+public ExplodeP2() //Displays Count Down Messages, Displays Premature Suicide Bomber Death Message, Emits Barney Speak, Randomizes Explosion Sprites, Calls Explosion Sprites, Gets Suicide Bomber Origin and Removes Task (When Seconds Reaches Zero)
+{
+  if((get_user_health(PlayerNum_Random) <= 0) && (Seconds > 0))
+  {
+    remove_task(1)
+    set_hudmessage(108, 244, 201, 0.35, 0.75, 0, 0.0, 6.0, 0.4, 0.1, 250)
+    show_hudmessage(PlayerNum_Random,"              You Have Been Killed. ^nYou're Suicide Bombing Mission Was a Failure")
+    Seconds = -1
+    PlayerNum_Random_Killed = 1
+    Player_Ammount = get_playersnum()
+    PlayerNum_Random_Team = get_user_team(PlayerNum_Random)
+    client_cmd(0,"spk vox/bloop")
+    while(Player_Ammount > 0)
+    {  
+      BomberKilled()
+      Player_Ammount--
+    }
+    
+    return PLUGIN_CONTINUE
+  }
+  
+  if((Seconds == 60) || (Seconds == 55) || (Seconds == 50) || (Seconds == 45) || (Seconds == 40) || (Seconds == 35) || (Seconds == 30) || (Seconds == 25) || (Seconds == 20) || (Seconds == 15))
+    HudAndEmit()
+  if(Seconds == 10)
+  {
+    HudAndEmit2()
+    if(Barney_Say2 == 1)
+      emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/c1a2_ba_goforit.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+    if(Barney_Say2 == 2)
+      emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/standback.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  }
+  
+  if((Seconds == 9) || (Seconds == 8) || (Seconds == 7) || (Seconds == 6) || (Seconds == 5))
+    HudAndEmit2()
+  if(Seconds == 4)
+  {
+    HudAndEmit2()
+    if(Barney_Say2 == 3)
+      emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/c1a4_ba_octo2.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  }
+  
+  if(Seconds == 3)
+  {
+    HudAndEmit2()
+    if(Barney_Say2 == 4)
+      emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/c1a4_ba_octo3.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+    if(Barney_Say2 == 5)
+      emit_sound(PlayerNum_Random,CHAN_VOICE,"barney/c1a4_ba_octo4.wav", 1.0, ATTN_NORM, 0, PITCH_NORM)
+  }
+  
+  if(Seconds == 2)
+    HudAndEmit2()
+  if(Seconds == 1)
+    HudAndEmit2()
+  if(Seconds == 0)
+  { 
+    remove_task(1)
+    emit_sound(PlayerNum_Random,CHAN_BODY,"weapons/c4_explode1.wav",1.0,ATTN_NORM,0,PITCH_NORM)
+    get_user_origin(PlayerNum_Random,Explosion_Origin,0)
+    Sprite_Randomize1 = random_num(-4,4)
+    Sprite_Randomize2 = random_num(-4,4)
+    Sprite_Randomize3 = random_num(-4,4)
+    Explode1(Explosion_Origin)
+    if((Sprite_Randomize1 == -4) || (Sprite_Randomize2 == -4) || (Sprite_Randomize3 == -4))
+     Explode2(Explosion_Origin)
+    if((Sprite_Randomize1 == -3) || (Sprite_Randomize2 == -3) || (Sprite_Randomize3 == -3))
+     Explode3(Explosion_Origin)
+    if((Sprite_Randomize1 == -2) || (Sprite_Randomize2 == -2) || (Sprite_Randomize3 == -2))
+     Explode4(Explosion_Origin)
+    if((Sprite_Randomize1 == -1) || (Sprite_Randomize2 == -1) || (Sprite_Randomize3 == -1))
+     Explode5(Explosion_Origin)
+    if((Sprite_Randomize1 == 0) || (Sprite_Randomize2 == -0) || (Sprite_Randomize3 == 0))
+     Explode6(Explosion_Origin)
+    if((Sprite_Randomize1 == 1) || (Sprite_Randomize2 == 1) || (Sprite_Randomize3 == 1))
+     Explode7(Explosion_Origin)
+    if((Sprite_Randomize1 == 2) || (Sprite_Randomize2 == 2) || (Sprite_Randomize3 == 2))
+     Explode8(Explosion_Origin)
+    if((Sprite_Randomize1 == 3) || (Sprite_Randomize2 == 3) || (Sprite_Randomize3 == 3))
+     Explode9(Explosion_Origin)
+    if((Sprite_Randomize1 == 4) || (Sprite_Randomize2 == 4) || (Sprite_Randomize3 == 4))
+     Explode10(Explosion_Origin)
+    KillP1()
+  }
+  
+  Seconds--
+  return PLUGIN_CONTINUE
+}
+
+public KillP1() //Calls KillP2 For Explosion Calculations, Calculates How Many Frags/Money The Suicide Bomber Will Recieve and Tells Suicide Bomber What They Recieve
+{
+  Player_Ammount = get_playersnum()
+  PlayerNum_Random_Team = get_user_team(PlayerNum_Random)
+  client_cmd(0,"spk vox/bloop")
+  while(Player_Ammount > 0)
+  {
+    KillP2()
+    BomberKilled()
+    Player_Ammount--
+  }
+  
+  if(Explosion_Frags == 0)
+  {
+    set_hudmessage(108, 244, 201, 0.33, 0.75, 0, 0.0, 6.0, 0.4, 0.1, 250)
+    show_hudmessage(PlayerNum_Random,"                      No Enemies Killed.^nYou're Suicide Bombing Misson Was a Partial Failure.^n                   You Are Awarded $20.")
+    cs_set_user_money(PlayerNum_Random,(cs_get_user_money(PlayerNum_Random) + 20),1)
+    return PLUGIN_CONTINUE
+  }
+  
+  set_user_frags(PlayerNum_Random, (get_user_frags(PlayerNum_Random) + Explosion_Frags))
+  cs_set_user_money(PlayerNum_Random,(cs_get_user_money(PlayerNum_Random) + (Explosion_Frags * 2000)),1)
+  set_hudmessage(108, 244, 201, 0.31, 0.75, 0, 0.0, 6.0, 0.4, 0.1, 250)
+  show_hudmessage(PlayerNum_Random,"         Suicide Bombing Mission Was a Success.^nYou Killed %i Enemies and Have Been Awarded $%i.", Explosion_Frags, (Explosion_Frags * 2000))
+  Explosion_Frags = 0
+  return PLUGIN_CONTINUE
+}
+
+public KillP2() //Calculates Distance From Explosion and How Much Damage to Apply
+{
+  if(Player_Ammount == PlayerNum_Random)
+  {
+    user_kill(PlayerNum_Random, 0)
+    Player_Ammount--
+  }
+  get_user_origin(Player_Ammount, PlayerOthr_Orig,0)
+  Explosive_Distance = get_distance(Explosion_Origin, PlayerOthr_Orig)
+  if(Explosive_Distance >= get_cvar_num("amx_suid_range"))
+    return PLUGIN_CONTINUE
+  Explosive_DistMinusCVAR = get_cvar_num("amx_suid_range") - Explosive_Distance //It Took Me a Day and a Half to Come Up With This! (Hard to Explain in Words What it Does, But it is ABSOLUTELY CRITICAL in Calculating Damage From The Explosion.)
+  PlayerHP = get_user_health(Player_Ammount) - Explosive_DistMinusCVAR
+  if(PlayerHP < 0)
+    PlayerHP = 0
+  set_user_health(Player_Ammount, PlayerHP)
+  if((PlayerHP == 0) && (get_user_team(Player_Ammount) != get_user_team(PlayerNum_Random)))
+    Explosion_Frags++
+  return PLUGIN_CONTINUE
+}
