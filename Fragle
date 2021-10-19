@@ -1,0 +1,73 @@
+//Fragle Version 1.01 by Gunnanmon (06Aug04)
+//
+//All players start out with a predetermined 
+//ammount of frags (Or not). When you die, you're
+//killer takes a frag from you.
+//
+// Availibe CVAR's
+//
+// frgl_on            - Plugin ON/OFF (1 = ON)
+// frgl_startfragson  - Give frags on server connect ON/OFF (1 = ON)
+// frgl_startfrags    - Players frags will be set to this on server connect.
+// frgl_msg           - In-Game Message ON/OFF (1 = ON)
+//
+//
+// -----------------------------------------------------------------------------
+//
+// Minor Fix. (17Aug04)
+// 
+// - Fixed in-game message which states if plugin is on or not.
+// - Added CVAR to turn message off.
+// - Changed CVAR names.
+
+#include <amxmodx>
+#include <cstrike>
+
+new killer
+new killerName[32]
+new victim
+new victimName[32]
+
+public plugin_init()
+{
+  register_plugin("Fragle", "1.01", "Gunnanmon")
+  register_logevent("event_rnd_strt_msg",2,"1=Round_Start")
+  register_event("DeathMsg", "event_death", "a")
+  register_cvar("frgl_on","1") 
+  register_cvar("frgl_startfragson","0") 
+  register_cvar("frgl_startfrags","50") 
+  register_cvar("frgl_msg","1") 
+  return PLUGIN_CONTINUE
+}
+
+public client_putinserver(id)
+{
+  if(get_cvar_num("frgl_startfragson") == 0)
+    return PLUGIN_CONTINUE
+  set_user_frags(id, get_cvar_num("fragle_frags"))
+  return PLUGIN_CONTINUE
+}
+
+public event_death()
+{
+  if(get_cvar_num("frgl_on") == 0)
+    return PLUGIN_CONTINUE
+  killer = read_data(1)
+  victim = read_data(2)
+  if(cs_get_user_team(killer) == cs_get_user_team(victim))
+    return PLUGIN_CONTINUE
+  set_user_frags(victim, (get_user_frags(victim) - 1))
+  get_user_name(killer, killerName, 32)
+  get_user_name(victim, victimName, 32)
+  client_print(victim, print_chat, "  %s Has Taken a Frag From You.", killerName)
+  client_print(killer, print_chat, "  You Have Taken a Frag From %s.", victimName)
+  return PLUGIN_CONTINUE
+}
+
+public event_rnd_strt_msg()
+{
+  if(get_cvar_num("frgl_msg") == 0)
+    return PLUGIN_CONTINUE
+  show_hudmessage(0, "[FRAGLE]: Frag Stealing is ACTIVE.")
+  return PLUGIN_CONTINUE
+}
