@@ -1,0 +1,167 @@
+// Buy$Message Version 1.0 by Gunnanmon  (03Aug04)
+//
+// This plugin will allow clients to send HUD messages
+// to everyone, but for a price.
+//
+// USAGE: /buymsg <Message>
+// Must be typed in chat.
+//
+// Availible CVAR's:
+// 
+// amx_buymsgon        - Plugin ON/OFF (1 = ON)
+// amx_buymsgdedspk    - Dead Players Buy Messages ON/OFF (1 = ON)
+// amx_buymsgnoname    - Name Tag On Messages ON/OFF (1 = ON)
+// amx_buymsgprice     - Price For One HUD Message
+// amx_buymsgdedprice  - Price For Dead Players
+// amx_buymsghelp      - Help Menu
+// amx_buymsgtime      - Time (Seconds) For Message
+// amx_buymsgdred      - Ammount of RED (0 - 255)
+// amx_buymsgblu       - Ammount of BLUE (0 - 255)
+// amx_buymsggrn       - Ammount of GREEN (0 - 255)
+//
+// _______________________________________________________________
+//
+// - Update (04Aug04)
+// - Added Customizable Message Color CVAR's.
+// - Added Code to Guarentee Message Won't be Knocked Off The Screen by Other Messages.
+// - Added Customizable Message Hold Time.
+// - Added Code Which Will Stop Two Clients From Posting A Message At The Same Time.
+
+
+#include <amxmodx>
+#include <cstrike>
+
+new chat_message[192]
+new chat_message_final[192]
+//new strbreak_chat_message[185]
+//new culled_message[7]
+new sender_name[20]
+
+public plugin_init()
+{
+  register_plugin("Buy$Message", "1.0", "Gunnanmon")
+  register_clcmd("say", "hud_print_pre")  
+  register_cvar("amx_buymsgon","1") 
+  register_cvar("amx_buymsgdedspk","1")
+  register_cvar("amx_buymsgnoname","1")    
+  register_cvar("amx_buymsgprice","1000")
+  register_cvar("amx_buymsgdedprice","3000")  
+  register_cvar("amx_buymsgtime","7")
+  register_cvar("amx_buymsgred","255")
+  register_cvar("amx_buymsgblu","100")
+  register_cvar("amx_buymsggrn","255")                
+  register_srvcmd("amx_buymsghelp", "server_help")   //Server Help
+  return PLUGIN_CONTINUE
+}
+
+public server_help()
+{
+  server_print(" ")
+  server_print("[BuyMsg]__________________________ ____ ___  __  _    _")
+  server_print("   Buy$Message - Version 1.0 Written by Gunnanmon")
+  server_print(" ")
+  server_print("amx_buymsgon - Plugin ON/OFF (1 = ON)")
+  server_print("amx_buymsgdedspk - Dead Players Buy Messages ON/OFF (1 = ON)")
+  server_print("amx_buymsgnoname - Name Tag On Messages ON/OFF (1 = ON)")
+  server_print("amx_buymsgprice - Price For One HUD Message.")
+  server_print("amx_buymsgdedprice - Price For Dead Players.")
+  server_print("amx_buymsgtime - Time (Seconds) For Message.")
+  server_print("amx_buymsgdred - Ammount of RED (0 - 255).")
+  server_print("amx_buymsgblu - Ammount of BLUE (0 - 255).")
+  server_print("amx_buymsggrn - Ammount of GREEN (0 - 255).")
+  server_print(" ")
+  server_print("_______________________________________ ____  __  _")
+  return PLUGIN_CONTINUE
+}
+
+public hud_print_pre(id)
+{
+  if(get_cvar_num("amx_buymsgon") == 0)
+    return PLUGIN_CONTINUE
+  read_argv(id, chat_message, 191)
+  //strbreak(chat_message, culled_message, 7, strbreak_chat_message, 185)
+  if(equali(chat_message, "/buymsg", 7))
+  {
+    if(task_exists(2, 0) == 1)
+    {
+      client_print(id, print_chat,"[Buy$Message] Please Wait a Moment, There is Already a Message Being Displayed.") 
+      return PLUGIN_CONTINUE
+    }
+    
+    if(is_user_alive(id) == 1)
+    {
+      user_alive(id)
+      return PLUGIN_CONTINUE
+    }
+    
+    if(is_user_alive(id) == 0)
+      user_dead(id)
+  }
+      
+  return PLUGIN_CONTINUE  
+}
+
+public user_alive(id)
+{
+  if(cs_get_user_money(id) < get_cvar_num("amx_buymsgprice"))
+  {
+    client_print(id, print_chat,"[Buy$Message] Insufficient Funds. You Need at Least $%i.", get_cvar_num("amx_buymsgprice")) 
+    return PLUGIN_CONTINUE
+  }
+      
+  cs_set_user_money(id, (cs_get_user_money(id) - get_cvar_num("amx_buymsgprice")), 1)
+  client_print(id, print_chat,"[Buy$Message] Bought One HUD Message For $%i.", get_cvar_num("amx_buymsgprice")) 
+  hud_print_post(id)
+      
+  return PLUGIN_CONTINUE
+}
+
+public user_dead(id)
+{
+  if(get_cvar_num("amx_buymsgdedspk") == 0)
+  {
+    client_print(id, print_chat,"[Buy$Message] 'Dead Speak' is Disabled.") 
+    return PLUGIN_CONTINUE
+  }
+      
+  if(cs_get_user_money(id) < get_cvar_num("amx_buymsgdedprice"))
+  {
+    client_print(id, print_chat,"[Buy$Message] Insufficient Funds. You Need at Least $%i While Dead.", get_cvar_num("amx_buymsgdedprice")) 
+    return PLUGIN_CONTINUE
+  }
+      
+  cs_set_user_money(id, (cs_get_user_money(id) - get_cvar_num("amx_buymsgdedprice")), 1)
+  client_print(id, print_chat,"[Buy$Message] Bought One HUD Message For $%i.", get_cvar_num("amx_buymsgprice")) 
+  hud_print_post(id)
+  
+  return PLUGIN_CONTINUE
+}
+
+public hud_print_post(id)
+{
+  chat_message_final = chat_message
+  if(get_cvar_num("amx_buymsgnoname") == 0)
+  {
+    set_task(1.0,"hud_anonymous",2,"",0,"a", get_cvar_num("amx_buymsgtime"))
+    return PLUGIN_CONTINUE
+  }
+  
+  get_user_name(id, sender_name, 20)
+  set_task(1.0,"hud_normal",2,"",0,"a", get_cvar_num("amx_buymsgtime"))
+  
+  return PLUGIN_CONTINUE
+}
+
+public hud_normal()
+{
+  set_hudmessage(get_cvar_num("amx_buymsgred"), get_cvar_num("amx_buymsggrn"), get_cvar_num("amx_buymsgblu"), 0.01, 0.50, 2, 0.01, 1.1, 0.0, 0.0, 170)
+  show_hudmessage(0, "%s: %s", sender_name, chat_message_final)
+  return PLUGIN_CONTINUE
+}
+
+public hud_anonymous()
+{
+  set_hudmessage(get_cvar_num("amx_buymsgred"), get_cvar_num("amx_buymsggrn"), get_cvar_num("amx_buymsgblu"), 0.01, 0.50, 2, 0.01, 1.1, 0.0, 0.0, 170)
+  show_hudmessage(0, "Anonymous: %s", chat_message_final)
+  return PLUGIN_CONTINUE
+}
